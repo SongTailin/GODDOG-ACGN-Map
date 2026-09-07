@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>全国活动分布示意图</title>
+    <script src="./assets/echarts.min.js"></script>
+    <script src="./data/china-provinces.js"></script>
+    <script src="./data/china-cities.js"></script>
+    <script src="./data/china-south-inset-provinces.js"></script>
+    <script src="./data/china-south-inset-islands.js"></script>
+    <script src="./data/china-location-index.js"></script>
+    <script src="./data/map-config.js"></script>
+    <style>
+      :root {
+        --bg-top: #f5efe5;
+        --bg-bottom: #e7dcc8;
+        --panel: rgba(255, 250, 241, 0.88);
+        --panel-border: rgba(121, 90, 58, 0.14);
+        --text-main: #1f2937;
+        --text-muted: #5b6470;
+        --shadow: 0 28px 60px rgba(89, 69, 44, 0.14);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Source Han Serif SC", "Noto Serif SC", "Songti SC", serif;
+        color: var(--text-main);
+        background:
+          radial-gradient(circle at top left, rgba(255, 255, 255, 0.75), transparent 24%),
+          linear-gradient(145deg, var(--bg-top), var(--bg-bottom));
+      }
+
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(0, 1.9fr) minmax(320px, 0.9fr);
+        gap: 24px;
+        padding: 28px;
+      }
+
+      .map-panel,
+      .side-panel {
+        background: var(--panel);
+        border: 1px solid var(--panel-border);
+        border-radius: 28px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      .map-panel {
+        position: relative;
+        overflow: hidden;
+        min-height: 720px;
+      }
+
+      .map-panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(135deg, rgba(212, 184, 145, 0.18), transparent 38%),
+          radial-gradient(circle at 82% 18%, rgba(14, 116, 144, 0.15), transparent 20%);
+        pointer-events: none;
+      }
+
+      #chart {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        min-height: 720px;
+      }
+
+      .side-panel {
+        padding: 28px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .eyebrow {
+        margin: 0 0 10px;
+        font-size: 12px;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        color: #8a6d48;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(28px, 3vw, 42px);
+        line-height: 1.15;
+      }
+
+      .subtitle,
+      .footer,
+      .note-list {
+        margin: 0;
+        color: var(--text-muted);
+      }
+
+      .section-title {
+        margin: 0 0 10px;
+        font-size: 13px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #7a5b3a;
+      }
+
+      .legend-list,
+      .note-list {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.52);
+      }
+
+      .swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 999px;
+        flex: none;
+        box-shadow: inset 0 0 0 1px rgba(31, 41, 55, 0.08);
+      }
+
+      .legend-name {
+        font-size: 15px;
+      }
+
+      .legend-count {
+        margin-left: auto;
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+
+      .note-item {
+        padding-left: 16px;
+        position: relative;
+        line-height: 1.65;
+      }
+
+      .note-item::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0.7em;
+        width: 6px;
+        height: 6px;
+        border-radius: 999px;
+        background: #b88a54;
+      }
+
+      @media (max-width: 1080px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+
+        .map-panel,
+        #chart {
+          min-height: 620px;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .app {
+          padding: 16px;
+          gap: 16px;
+        }
+
+        .side-panel {
+          padding: 20px 18px;
+        }
+
+        .map-panel,
+        #chart {
+          min-height: 520px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <section class="map-panel">
+        <div id="chart"></div>
+      </section>
+
+      <aside class="side-panel">
+        <div>
+          <p class="eyebrow">GODDOG National ACGN Activity Map</p>
+          <h1 id="title"></h1>
+        </div>
+        <p id="subtitle" class="subtitle"></p>
+        <section>
+          <h2 class="section-title">省份图例</h2>
+          <div id="province-legend" class="legend-list"></div>
+        </section>
+        <section>
+          <h2 class="section-title">城市图例</h2>
+          <div id="city-legend" class="legend-list"></div>
+        </section>
+        <section>
+          <h2 class="section-title">使用说明</h2>
+          <div id="notes" class="note-list"></div>
+        </section>
+        <p id="footer" class="footer"></p>
+      </aside>
+    </main>
+
+    <script>
+      const chart = echarts.init(document.getElementById("chart"), null, {
+        renderer: "svg"
+      });
+
+      const config = window.MAP_CONFIG;
+      const locationIndex = window.CHINA_LOCATION_INDEX;
+      const mainLayoutCenter = ["47%", "54%"];
+      const mainLayoutSize = "112%";
+
+      function normalizeRegionName(name) {
+        return String(name || "")
+          .trim()
+          .replace(
+            /(特别行政区|维吾尔自治区|壮族自治区|回族自治区|自治区|省|市|地区|盟|自治州)$/u,
+            ""
+          );
+      }
+
+      function createNameLookup(features) {
+        const lookup = new Map();
+
+        features.forEach((feature) => {
+          const props = feature.properties || {};
+          const target = props.name;
+          const aliases = [props.name, props.fullname];
+
+          aliases.forEach((alias) => {
+            if (!alias) {
+              return;
+            }
+            lookup.set(alias, target);
+            lookup.set(normalizeRegionName(alias), target);
+          });
+        });
+
+        return lookup;
+      }
+
+      function resolveRegionName(lookup, rawName) {
+        return lookup.get(rawName) || lookup.get(normalizeRegionName(rawName)) || rawName;
+      }
+
+      function iterateGeoPoints(coordinates, visitor) {
+        if (!Array.isArray(coordinates)) {
+          return;
+        }
+
+        if (
+          coordinates.length >= 2 &&
+          typeof coordinates[0] === "number" &&
+          typeof coordinates[1] === "number"
+        ) {
+          visitor(coordinates[0], coordinates[1]);
+          return;
+        }
+
+        coordinates.forEach((child) => iterateGeoPoints(child, visitor));
+      }
+
+      function computeGeoJSONBounds(geojson) {
+        let minX = Number.POSITIVE_INFINITY;
+        let minY = Number.POSITIVE_INFINITY;
+        let maxX = Number.NEGATIVE_INFINITY;
+        let maxY = Number.NEGATIVE_INFINITY;
+
+        geojson.features.forEach((feature) => {
+          iterateGeoPoints(feature.geometry.coordinates, (x, y) => {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+          });
+        });
+
+        return { minX, minY, maxX, maxY };
+      }
+
+      function createBoundingCoords(bounds) {
+        return [
+          [bounds.minX, bounds.maxY],
+          [bounds.maxX, bounds.minY]
+        ];
+      }
+
+      function normalizeLookupItem(item) {
+        if (typeof item === "string") {
+          return { name: item, text: item };
+        }
+        return item || {};
+      }
+
+      function listLocationCandidates(name) {
+        if (!name) {
+          return [];
+        }
+
+        const aliases = [name, normalizeRegionName(name)];
+        const seen = new Set();
+        const candidates = [];
+
+        aliases.forEach((alias) => {
+          const codes = locationIndex.byName[alias] || [];
+          codes.forEach((code) => {
+            if (seen.has(code) || !locationIndex.byCode[code]) {
+              return;
+            }
+            seen.add(code);
+            candidates.push(locationIndex.byCode[code]);
+          });
+        });
+
+        return candidates;
+      }
+
+      function normalizeProvinceName(name) {
+        return normalizeRegionName(name || "");
+      }
+
+      function scoreLocationCandidate(candidate, item, preferredLevels) {
+        const rawName = item.name || "";
+        let score = 0;
+
+        if (candidate.fullname === rawName || candidate.name === rawName) {
+          score += 100;
+        }
+
+        if (
+          normalizeRegionName(candidate.fullname) === normalizeRegionName(rawName) ||
+          normalizeRegionName(candidate.name) === normalizeRegionName(rawName)
+        ) {
+          score += 40;
+        }
+
+        if (item.level && candidate.level === item.level) {
+          score += 30;
+        }
+
+        if (item.kind && candidate.kind === item.kind) {
+          score += 30;
+        }
+
+        if (
+          item.provinceName &&
+          normalizeProvinceName(candidate.provinceName) ===
+            normalizeProvinceName(item.provinceName)
+        ) {
+          score += 25;
+        }
+
+        const levelIndex = preferredLevels.indexOf(candidate.level);
+        score += levelIndex === -1 ? 0 : 20 - levelIndex * 5;
+        return score;
+      }
+
+      function resolveLocation(item, preferredLevels) {
+        const normalizedItem = normalizeLookupItem(item);
+
+        if (normalizedItem.code && locationIndex.byCode[normalizedItem.code]) {
+          return locationIndex.byCode[normalizedItem.code];
+        }
+
+        let candidates = listLocationCandidates(normalizedItem.name);
+
+        if (normalizedItem.provinceName) {
+          const filtered = candidates.filter(
+            (candidate) =>
+              normalizeProvinceName(candidate.provinceName) ===
+              normalizeProvinceName(normalizedItem.provinceName)
+          );
+          if (filtered.length) {
+            candidates = filtered;
+          }
+        }
+
+        if (normalizedItem.level) {
+          const filtered = candidates.filter((candidate) => candidate.level === normalizedItem.level);
+          if (filtered.length) {
+            candidates = filtered;
+          }
+        }
+
+        if (normalizedItem.kind) {
+          const filtered = candidates.filter((candidate) => candidate.kind === normalizedItem.kind);
+          if (filtered.length) {
+            candidates = filtered;
+          }
+        }
+
+        if (!candidates.length) {
+          return null;
+        }
+
+        const ranked = [...candidates].sort((left, right) => {
+          const scoreDiff =
+            scoreLocationCandidate(right, normalizedItem, preferredLevels) -
+            scoreLocationCandidate(left, normalizedItem, preferredLevels);
+
+          if (scoreDiff !== 0) {
+            return scoreDiff;
+          }
+
+          return left.code.localeCompare(right.code);
+        });
+
+        return ranked[0];
+      }
+
+      function searchLocations(keyword, limit = 20) {
+        const query = String(keyword || "").trim();
+        if (!query) {
+          return [];
+        }
+
+        return locationIndex.locations
+          .filter((entry) =>
+            [entry.name, entry.fullname, ...(entry.aliases || [])].some(
+              (field) => field && field.includes(query)
+            )
+          )
+          .slice(0, limit);
+      }
+
+      function groupLegendItems(items) {
+        const grouped = new Map();
+
+        items.forEach((item) => {
+          const key = `${item.category || "未分类"}__${item.color}`;
+          const entry = grouped.get(key) || {
+            name: item.category || "未分类",
+            color: item.color,
+            count: 0
+          };
+          entry.count += 1;
+          grouped.set(key, entry);
+        });
+
+        return [...grouped.values()];
+      }
+
+      function renderLegend(containerId, items) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+
+        groupLegendItems(items).forEach((item) => {
+          const row = document.createElement("div");
+          row.className = "legend-item";
+          row.innerHTML = `
+            <span class="swatch" style="background:${item.color}"></span>
+            <span class="legend-name">${item.name}</span>
+            <span class="legend-count">${item.count}个</span>
+          `;
+          container.appendChild(row);
+        });
+      }
+
+      function renderNotes() {
+        const notes = document.getElementById("notes");
+        notes.innerHTML = "";
+
+        config.notes.forEach((text) => {
+          const row = document.createElement("div");
+          row.className = "note-item";
+          row.textContent = text;
+          notes.appendChild(row);
+        });
+      }
+
+      function resolveRegionTarget(item, lookup, preferredLevels) {
+        const matched = resolveLocation(item, preferredLevels);
+        const regionName = matched ? matched.name : resolveRegionName(lookup, item.name);
+
+        return {
+          matched,
+          regionName
+        };
+      }
+
+      function normalizeExtraRegion(item, extraRegion) {
+        if (typeof extraRegion === "string") {
+          return {
+            name: extraRegion
+          };
+        }
+
+        return {
+          ...(extraRegion || {})
+        };
+      }
+
+      function createRegionStyle(item, overrides = {}) {
+        const areaColor = overrides.areaColor || item.color;
+        const borderColor =
+          overrides.borderColor || item.borderColor || "rgba(255,255,255,0.92)";
+        const borderWidth = overrides.borderWidth ?? item.borderWidth ?? 1.1;
+
+        return {
+          itemStyle: {
+            areaColor,
+            borderColor,
+            borderWidth
+          },
+          emphasis: {
+            itemStyle: {
+              areaColor,
+              borderColor,
+              borderWidth
+            }
+          }
+        };
+      }
+
+      function createStaticRegion(name, style) {
+        return {
+          name,
+          itemStyle: {
+            areaColor: style.areaColor,
+            borderColor: style.borderColor,
+            borderWidth: style.borderWidth
+          },
+          emphasis: {
+            itemStyle: {
+              areaColor: style.areaColor,
+              borderColor: style.borderColor,
+              borderWidth: style.borderWidth
+            }
+          }
+        };
+      }
+
+      function mergeRegions(...groups) {
+        const regionMap = new Map();
+
+        groups.flat().forEach((region) => {
+          if (!region || !region.name) {
+            return;
+          }
+          regionMap.set(region.name, region);
+        });
+
+        return [...regionMap.values()];
+      }
+
+      function buildRegions(items, lookup, preferredLevels) {
+        const regionMap = new Map();
+
+        items.forEach((rawItem) => {
+          const item = normalizeLookupItem(rawItem);
+          const { matched, regionName } = resolveRegionTarget(item, lookup, preferredLevels);
+
+          if (!regionName) {
+            console.warn("[map] Unresolved region:", item);
+            return;
+          }
+
+          regionMap.set(regionName, {
+            name: regionName,
+            ...createRegionStyle(item)
+          });
+
+          const extraRegions = Array.isArray(item.extraRegions) ? [...item.extraRegions] : [];
+          extraRegions.forEach((extraRegion) => {
+            const normalizedExtra = normalizeExtraRegion(item, extraRegion);
+            const extraTarget = resolveRegionTarget(normalizedExtra, lookup, preferredLevels);
+            const extraName = extraTarget.regionName;
+
+            if (!extraName) {
+              console.warn("[map] Unresolved extra region:", normalizedExtra);
+              return;
+            }
+
+            regionMap.set(extraName, {
+              name: extraName,
+              ...createRegionStyle(item, normalizedExtra)
+            });
+          });
+        });
+
+        return [...regionMap.values()];
+      }
+
+      function findConfiguredProvinceStyle(provinceCode) {
+        let matchedStyle = null;
+
+        config.provinceRegions.forEach((rawItem) => {
+          const item = normalizeLookupItem(rawItem);
+          const matched = resolveLocation(item, [1]);
+
+          if (matched?.code === provinceCode) {
+            matchedStyle = item;
+          }
+        });
+
+        return matchedStyle;
+      }
+
+      function buildMainProvinceRegions(provinceLookup) {
+        const southSeaInsetName = resolveRegionName(provinceLookup, "南海诸岛及缩略图");
+        const dashedLineName = resolveRegionName(provinceLookup, "中国南海十段线");
+
+        return mergeRegions(
+          buildRegions(config.provinceRegions, provinceLookup, [1]),
+          [
+            createStaticRegion(southSeaInsetName, {
+              areaColor: "rgba(0,0,0,0)",
+              borderColor: "rgba(0,0,0,0)",
+              borderWidth: 0
+            }),
+            createStaticRegion(dashedLineName, {
+              areaColor: "rgba(0,0,0,0)",
+              borderColor: "rgba(0,0,0,0)",
+              borderWidth: 0
+            })
+          ]
+        );
+      }
+
+      function buildInsetProvinceRegions(insetProvinceLookup) {
+        const hainanStyle = findConfiguredProvinceStyle("460000");
+        const southSeaLineColor = hainanStyle?.southSeaLineColor || "#111111";
+        const southSeaLineWidth = hainanStyle?.southSeaLineWidth ?? 2.4;
+        const dashedLineName = resolveRegionName(insetProvinceLookup, "中国南海十段线");
+
+        return mergeRegions(
+          buildRegions(config.provinceRegions, insetProvinceLookup, [1]),
+          [
+            createStaticRegion(dashedLineName, {
+              areaColor: "rgba(0,0,0,0)",
+              borderColor: southSeaLineColor,
+              borderWidth: southSeaLineWidth
+            }),
+            createStaticRegion("南海缩略图边框", {
+              areaColor: "rgba(255,255,255,0)",
+              borderColor: "rgba(0,0,0,0.82)",
+              borderWidth: 1.25
+            })
+          ]
+        );
+      }
+
+      function buildInsetIslandRegions(insetIslandLookup) {
+        const hainanStyle = findConfiguredProvinceStyle("460000");
+        const islandName = resolveRegionName(insetIslandLookup, "三沙市");
+        return [
+          createStaticRegion(islandName, {
+          areaColor: hainanStyle?.color || "#16a34a",
+          borderColor: hainanStyle?.southSeaBorderColor || "#111111",
+          borderWidth: hainanStyle?.southSeaBorderWidth ?? 0.45
+          })
+        ];
+      }
+
+      function resolveLabelPoints() {
+        return config.cityLabels
+          .map((rawItem) => {
+            const item = normalizeLookupItem(rawItem);
+            const matched = resolveLocation(item, [2, 1, 3]);
+            const center = item.value || matched?.center;
+
+            if (!center) {
+              console.warn("[map] Unresolved label location:", item);
+              return null;
+            }
+
+            return {
+              ...item,
+              name: item.name || matched?.fullname || item.text,
+              value: center,
+              locationCode: matched?.code || item.code || null,
+              locationName: matched?.fullname || item.name || ""
+            };
+          })
+          .filter(Boolean);
+      }
+
+      function buildLabelSeries() {
+        return {
+          type: "scatter",
+          coordinateSystem: "geo",
+          geoIndex: 0,
+          zlevel: 3,
+          symbol: "circle",
+          symbolSize: 8,
+          itemStyle: {
+            color: "#1f2937",
+            borderColor: "#fff8ef",
+            borderWidth: 2
+          },
+          label: {
+            show: true,
+            formatter(params) {
+              return params.data.text || params.name;
+            },
+            position: "right",
+            distance: 10,
+            color: "#1f2937",
+            fontSize: 13,
+            fontWeight: 600,
+            lineHeight: 18,
+            backgroundColor: "rgba(255,248,239,0.92)",
+            borderColor: "rgba(108, 79, 44, 0.14)",
+            borderWidth: 1,
+            borderRadius: 8,
+            padding: [5, 8]
+          },
+          emphasis: {
+            scale: false
+          },
+          data: resolveLabelPoints()
+        };
+      }
+
+      window.lookupLocationByName = function lookupLocationByName(name, options = {}) {
+        return resolveLocation({ name, ...options }, [2, 1, 3]);
+      };
+
+      window.searchLocationsByKeyword = function searchLocationsByKeyword(keyword, limit = 20) {
+        return searchLocations(keyword, limit);
+      };
+
+      function buildOption() {
+        const provinceLookup = createNameLookup(window.CHINA_PROVINCES_GEOJSON.features);
+        const cityLookup = createNameLookup(window.CHINA_CITIES_GEOJSON.features);
+        const insetProvinceLookup = createNameLookup(
+          window.CHINA_SOUTH_INSET_PROVINCES_GEOJSON.features
+        );
+        const insetIslandLookup = createNameLookup(
+          window.CHINA_SOUTH_INSET_ISLANDS_GEOJSON.features
+        );
+        const nationalBoundingCoords = createBoundingCoords(
+          computeGeoJSONBounds(window.CHINA_PROVINCES_GEOJSON)
+        );
+
+        echarts.registerMap("china-provinces", window.CHINA_PROVINCES_GEOJSON);
+        echarts.registerMap("china-cities", window.CHINA_CITIES_GEOJSON);
+        echarts.registerMap(
+          "china-south-inset-provinces",
+          window.CHINA_SOUTH_INSET_PROVINCES_GEOJSON
+        );
+        echarts.registerMap(
+          "china-south-inset-islands",
+          window.CHINA_SOUTH_INSET_ISLANDS_GEOJSON
+        );
+
+        renderLegend("province-legend", config.provinceRegions);
+        renderLegend("city-legend", config.cityRegions);
+        renderNotes();
+
+        document.getElementById("title").textContent = config.title;
+        document.getElementById("subtitle").textContent = config.subtitle;
+        document.getElementById("footer").textContent = config.footer;
+
+        return {
+          backgroundColor: "transparent",
+          tooltip: {
+            trigger: "item",
+            backgroundColor: "rgba(32, 26, 20, 0.9)",
+            borderWidth: 0,
+            textStyle: {
+              color: "#fff8ef",
+              fontFamily: '"Noto Serif SC", "Source Han Serif SC", serif'
+            },
+            formatter(params) {
+              if (params.seriesType === "scatter") {
+                return params.data.text || params.name;
+              }
+              return params.name;
+            }
+          },
+          geo: [
+            {
+              map: "china-provinces",
+              roam: false,
+              silent: true,
+              boundingCoords: nationalBoundingCoords,
+              layoutCenter: mainLayoutCenter,
+              layoutSize: mainLayoutSize,
+              z: 1,
+              itemStyle: {
+                areaColor: "#ede6d9",
+                borderColor: "#fffaf0",
+                borderWidth: 1.1
+              },
+              emphasis: {
+                disabled: true
+              },
+              regions: buildMainProvinceRegions(provinceLookup)
+            },
+            {
+              map: "china-cities",
+              roam: false,
+              silent: true,
+              boundingCoords: nationalBoundingCoords,
+              layoutCenter: mainLayoutCenter,
+              layoutSize: mainLayoutSize,
+              z: 2,
+              itemStyle: {
+                areaColor: "rgba(0,0,0,0)",
+                borderColor: "rgba(255,255,255,0.42)",
+                borderWidth: 0.68
+              },
+              emphasis: {
+                disabled: true
+              },
+              regions: buildRegions(config.cityRegions, cityLookup, [2, 3])
+            },
+            {
+              map: "china-south-inset-provinces",
+              roam: false,
+              silent: true,
+              boundingCoords: nationalBoundingCoords,
+              layoutCenter: mainLayoutCenter,
+              layoutSize: mainLayoutSize,
+              z: 3,
+              itemStyle: {
+                areaColor: "#ede6d9",
+                borderColor: "rgba(255,250,240,0.95)",
+                borderWidth: 1
+              },
+              emphasis: {
+                disabled: true
+              },
+              regions: buildInsetProvinceRegions(insetProvinceLookup)
+            },
+            {
+              map: "china-south-inset-islands",
+              roam: false,
+              silent: true,
+              boundingCoords: nationalBoundingCoords,
+              layoutCenter: mainLayoutCenter,
+              layoutSize: mainLayoutSize,
+              z: 4,
+              itemStyle: {
+                areaColor: "rgba(0,0,0,0)",
+                borderColor: "rgba(20,83,45,0.6)",
+                borderWidth: 0.7
+              },
+              emphasis: {
+                disabled: true
+              },
+              regions: buildInsetIslandRegions(insetIslandLookup)
+            }
+          ],
+          series: [buildLabelSeries()]
+        };
+      }
+
+      chart.setOption(buildOption());
+      window.addEventListener("resize", () => chart.resize());
+    </script>
+  </body>
+</html>
