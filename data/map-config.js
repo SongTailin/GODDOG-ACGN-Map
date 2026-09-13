@@ -1,7 +1,7 @@
 window.MAP_CONFIG = {
   title: "战狗传说全国二次元活动分布图",
   subtitle: "省份按活动情况分类，扮演角色的城市单独标注",
-  footer: "2026年09月07日更新",
+  footer: "2026年09月13日更新",
   provinceRegions: [
     { name: "北京", color: "#FF0000", category: "扮演过角色的省份" },
     { name: "吉林", color: "#FF0000", category: "扮演过角色的省份" },
@@ -50,7 +50,7 @@ window.MAP_CONFIG = {
     { name: "济南", color: "#A52A2A", category: "扮演过角色的城市" }
   ],
   cityLabels: [
-    { name: "海淀区", text: "北京-那维莱特、尼克·王尔德、温迪" },
+    { name: "海淀区", text: "北京-那维莱特、尼克·王尔德、温迪、诸葛亮" },
     { name: "长春", text: "长春-那维莱特" },
     { name: "延边", text: "延边-雷姆、莱依拉" },
     { name: "浦东新区", text: "上海-莱依拉" },
